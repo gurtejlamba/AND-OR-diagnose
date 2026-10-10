@@ -132,8 +132,8 @@ def slide_title(prs):
     add_rect(slide, 0.6, 3.85, 4.5, 0.05, fill=ACCENT)
     add_text(slide, "AISC Project Presentation  |  2026",
              0.6, 4.0, 8, 0.5, size=16, color=GRAY)
-    add_text(slide, "Member 1  &  Member 2",
-             0.6, 4.6, 8, 0.5, size=18, color=WHITE, bold=True)
+    add_text(slide, "Gurtej Singh Lamba  (2427030405)      Abhiyansh Bhansali  (2427030437)",
+             0.6, 4.6, 12, 0.5, size=17, color=WHITE, bold=True)
 
 
 def slide_problem(prs):

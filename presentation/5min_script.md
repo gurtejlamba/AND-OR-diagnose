@@ -10,7 +10,7 @@
 Good morning, everyone. We are presenting our project titled "AI-Powered Device Troubleshooting Assistant using the AO Star Algorithm on AND-OR Graphs."
 
 **Person B:**
-My name is [Name], and this is [Name]. Our project applies a classical AI search technique to a very practical, everyday problem: figuring out why your device broke — and fixing it as cheaply as possible.
+My name is Abhiyansh Bhansali, roll number 2427030437, and this is Gurtej Singh Lamba, roll number 2427030405. Our project applies a classical AI search technique to a very practical, everyday problem: figuring out why your device broke — and fixing it as cheaply as possible.
 
 ---
 

@@ -6,8 +6,8 @@
 ## Team
 | Role | Responsibility |
 |------|---------------|
-| Member 1 | Algorithm design, AO\* implementation, AND-OR graph construction |
-| Member 2 | Knowledge base, interactive session engine, comparison module, documentation |
+| Gurtej Singh Lamba (2427030405) | Algorithm design, AO\* implementation, AND-OR graph construction |
+| Abhiyansh Bhansali (2427030437) | Knowledge base, interactive session engine, comparison module, documentation |
 
 ## Motivation
 Every user who owns a laptop, smartphone, or peripheral device will eventually face a hardware or software fault. The standard response is to search online or visit a repair shop. Both approaches share a critical flaw: **the fix is chosen without knowing its cost or likelihood of success**, leading to wasted time and money.
