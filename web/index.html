@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AO* Fault Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #EDF0F2; --grid: rgba(22,33,58,.055); --ink: #16213A; --ink-2: #5A6478;
+    --line: #AEB7C4; --card: #F9FAFB; --marker: #FFC21A; --marker-op: .62;
+    --fail: #D3372A; --fail-soft: #F9E3E0; --ok: #138A63; --ok-soft: #DDF1E8;
+    --panel: #16213A; --panel-ink: #EDF0F2; --panel-ink-2: #A9B3C4;
+    --blend: multiply;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0E1726; --grid: rgba(160,190,230,.06); --ink: #E4EAF3; --ink-2: #8E9BB1;
+      --line: #34445F; --card: #132036; --marker: #F5B400; --marker-op: .4;
+      --fail: #FF6B5E; --fail-soft: #3A1E22; --ok: #3CCB97; --ok-soft: #12302A;
+      --panel: #E4EAF3; --panel-ink: #0E1726; --panel-ink-2: #4A5770;
+      --blend: normal;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0E1726; --grid: rgba(160,190,230,.06); --ink: #E4EAF3; --ink-2: #8E9BB1;
+    --line: #34445F; --card: #132036; --marker: #F5B400; --marker-op: .4;
+    --fail: #FF6B5E; --fail-soft: #3A1E22; --ok: #3CCB97; --ok-soft: #12302A;
+    --panel: #E4EAF3; --panel-ink: #0E1726; --panel-ink-2: #4A5770;
+    --blend: normal;
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0; color: var(--ink); background: var(--paper);
+    font: 400 16px/1.55 Archivo, "Helvetica Neue", Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  .app {
+    height: 100vh; height: 100dvh; padding: 16px 22px; max-width: 1600px; margin: 0 auto;
+    display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto minmax(0, 1fr); gap: 14px 24px;
+  }
+  .top { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 24px; }
+  .stage { display: flex; flex-direction: column; min-height: 0; }
+  .side { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 0 4px 8px 0; }
+  @media (max-width: 899px), (max-height: 560px) {
+    .app { display: block; height: auto; padding: 24px 16px 60px; }
+    .top { margin-bottom: 16px; }
+    .board { flex: none; overflow-x: auto; }
+    .board svg { height: auto; min-width: 760px; }
+    .side { overflow: visible; margin-top: 28px; gap: 28px; }
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:disabled { cursor: default; opacity: .45; }
+  :focus-visible { outline: 2.5px solid var(--marker); outline-offset: 3px; }
+
+  /* ── header ─────────────────────────────── */
+  h1 {
+    font-stretch: 125%; font-weight: 800; font-size: clamp(24px, 2.6vw, 34px);
+    line-height: 1.05; letter-spacing: -0.02em; margin: 0;
+  }
+  .lede { max-width: 70ch; color: var(--ink-2); font-size: 14.5px; margin: 4px 0 0; }
+  .devices { display: flex; flex-wrap: wrap; gap: 6px; }
+  .devices button {
+    border: 1.5px solid var(--ink); background: transparent; border-radius: 999px;
+    padding: 6px 14px; font-weight: 600; font-size: 14px;
+  }
+  .devices button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+  /* ── board ──────────────────────────────── */
+  .board {
+    position: relative; border: 1.5px solid var(--ink); border-radius: 4px 4px 0 0;
+    background-color: var(--card);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px;
+    flex: 1; min-height: 0; overflow: hidden;
+  }
+  .board svg { display: block; width: 100%; height: 100%; }
+  .caption {
+    border: 1.5px solid var(--ink); border-top: 0; border-radius: 0 0 4px 4px;
+    background: var(--paper); padding: 10px 16px; min-height: 68px; font-size: 15px;
+    display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start;
+  }
+  .caption .pen { width: 22px; height: 22px; margin-top: 1px; color: var(--ink-2); }
+  .caption p { margin: 0; max-width: 90ch; }
+  .caption p.swap { animation: swap .45s ease-out; }
+  @keyframes swap { from { opacity: 0; transform: translateY(4px); } }
+  .caption strong { font-weight: 650; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 8px 2px 0; font-size: 13px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend svg { width: 30px; height: 20px; overflow: visible; }
+
+  /* svg pieces */
+  .edge { fill: none; stroke: var(--line); stroke-width: 1.6; stroke-linejoin: round; transition: opacity .3s; }
+  .edge.dead { stroke-dasharray: 4 5; opacity: .55; }
+  .hl { fill: none; stroke: var(--marker); stroke-width: 12; stroke-linecap: round; stroke-linejoin: round;
+        opacity: var(--marker-op); mix-blend-mode: var(--blend); stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .gate-shape { fill: var(--card); stroke: var(--ink); stroke-width: 1.8; transition: fill .35s, stroke .35s; }
+  .gate.plan .gate-shape { fill: var(--marker); }
+  .gate.solved .gate-shape { fill: var(--ok); stroke: var(--ok); }
+  .gate.failed .gate-shape { stroke: var(--fail); stroke-dasharray: 4 3; fill: var(--fail-soft); }
+  .gate-x { stroke: var(--fail); stroke-width: 2.6; stroke-linecap: round; opacity: 0; transition: opacity .3s; }
+  .gate.failed .gate-x { opacity: 1; }
+  .g-label { font-weight: 650; font-size: 15px; fill: var(--ink); }
+  .g-type { font-weight: 700; font-size: 10px; fill: var(--ink); letter-spacing: .04em; }
+  .gate.solved .g-type { fill: var(--card); }
+  .g-f { font-weight: 500; font-size: 13.5px; fill: var(--ink-2); }
+  .gate.failed .g-f { fill: var(--fail); }
+  .flash { animation: flash .7s ease-out; }
+  @keyframes flash { 0% { fill: var(--ink); font-weight: 800; } 100% { } }
+
+  .leaf-box { fill: var(--card); stroke: var(--line); stroke-width: 1.2; transition: fill .35s, stroke .35s; }
+  .leaf.next .leaf-box { stroke: var(--ink); stroke-width: 2.2; }
+  .leaf.next .ring { opacity: 1; animation: breathe 1.8s ease-in-out infinite; }
+  .ring { fill: none; stroke: var(--ink); stroke-width: 1.2; opacity: 0; }
+  @keyframes breathe { 50% { opacity: .15; } }
+  .swipe { fill: var(--marker); opacity: var(--marker-op); mix-blend-mode: var(--blend);
+           transform-box: fill-box; transform-origin: left center; transform: scaleX(0); transition: transform .4s cubic-bezier(.6,0,.2,1); }
+  .leaf.plan .swipe { transform: scaleX(1); }
+  .leaf-name { font-weight: 500; font-size: 14.5px; fill: var(--ink); }
+  .leaf-cost { font-weight: 700; font-size: 14px; fill: var(--ink); }
+  .leaf-time { font-size: 13px; fill: var(--ink-2); }
+  .leaf.failed .leaf-box { stroke-dasharray: 4 4; fill: transparent; }
+  .leaf.failed .leaf-name, .leaf.failed .leaf-cost { fill: var(--ink-2); }
+  .leaf.solved .leaf-box { stroke: var(--ok); fill: var(--ok-soft); }
+  .strike { fill: none; stroke: var(--fail); stroke-width: 2.6; stroke-linecap: round;
+            stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .4s cubic-bezier(.6,0,.2,1); }
+  .leaf.failed .strike { stroke-dashoffset: 0; }
+  .check { fill: none; stroke: var(--ok); stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;
+           stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .4s ease-out .1s; }
+  .leaf.solved .check { stroke-dashoffset: 0; }
+  .pulse { filter: drop-shadow(0 0 5px currentColor); }
+  .pulse.cost { fill: var(--ink); color: var(--marker); }
+  .pulse.ok { fill: var(--ok); color: var(--ok); }
+  .pulse.bad { fill: var(--fail); color: var(--fail); }
+
+  /* ── controls ───────────────────────────── */
+  h2 { font-size: 14px; font-weight: 650; margin: 0 0 6px; color: var(--ink-2); }
+  .next { background: var(--panel); color: var(--panel-ink); border-radius: 4px; padding: 16px 18px; flex: none; }
+  .next h2 { color: var(--panel-ink-2); }
+  .next-name { font-stretch: 112%; font-weight: 750; font-size: 22px; line-height: 1.12; margin: 0 0 6px; }
+  .next-desc { color: var(--panel-ink-2); margin: 0 0 12px; font-size: 14.5px; line-height: 1.45; }
+  .facts { display: flex; gap: 24px; margin: 0 0 14px; }
+  .facts div { display: flex; flex-direction: column; }
+  .facts b { font-size: 20px; font-weight: 700; line-height: 1.1; }
+  .facts small { color: var(--panel-ink-2); font-size: 13px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .actions button {
+    border: 0; border-radius: 4px; padding: 10px 8px; font-weight: 700; font-size: 15px;
+    display: flex; justify-content: center; align-items: center; gap: 10px;
+    transition: transform .12s;
+  }
+  .actions button:active:not(:disabled) { transform: translateY(1px) scale(.98); }
+  .yes { background: var(--ok); color: #fff; }
+  .no { background: var(--fail); color: #fff; }
+  kbd { font: 600 11px/1 Archivo, sans-serif; border: 1px solid rgba(255,255,255,.5); border-radius: 3px; padding: 3px 5px; opacity: .85; }
+  .verdict { font-stretch: 118%; font-weight: 800; font-size: 28px; line-height: 1.05; margin: 2px 0 8px; }
+  .verdict.good { color: var(--ok); }
+  .verdict.bad { color: var(--fail); }
+  .next .again { margin-top: 12px; width: 100%; border: 1.5px solid var(--panel-ink-2); background: transparent; border-radius: 4px; padding: 10px; font-weight: 600; }
+
+  ol.plan { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  ol.plan li { counter-increment: step; display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: baseline;
+               padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 15px; animation: swap .4s ease-out backwards; }
+  ol.plan li::before { content: counter(step); font-weight: 800; font-stretch: 125%; color: var(--ink-2); }
+  ol.plan li:first-child { font-weight: 650; }
+  ol.plan li:first-child::before { color: var(--ink); }
+  .amt { text-align: right; white-space: nowrap; }
+  .amt small { color: var(--ink-2); margin-left: 8px; }
+  .empty { color: var(--ink-2); margin: 0; }
+
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 0; font-size: 15px; border-bottom: 1px solid var(--line); vertical-align: baseline; }
+  td:first-child { width: 22px; font-weight: 800; }
+  td.num { text-align: right; white-space: nowrap; }
+  tr.new td { animation: swap .4s ease-out; }
+  tr.total td { border-bottom: 0; font-weight: 750; padding-top: 8px; }
+  .r-ok { color: var(--ok); } .r-bad { color: var(--fail); }
+  .text-btn { border: 0; background: none; padding: 0; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; font-size: 14px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+
+  /* ── race ───────────────────────────────── */
+  .race { border-top: 1.5px solid var(--ink); padding-top: 14px; }
+  .race h3 { font-stretch: 125%; font-weight: 800; font-size: 19px; line-height: 1.1; margin: 0 0 4px; }
+  .race > p { color: var(--ink-2); font-size: 14.5px; line-height: 1.45; margin: 0 0 12px; }
+  .race-btn { border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); border-radius: 999px; padding: 8px 16px; font-weight: 650; font-size: 14px; }
+  .lanes { margin-top: 14px; display: grid; gap: 10px; }
+  .lane { display: grid; gap: 4px; }
+  .lane-name { font-weight: 650; font-size: 14px; }
+  .lane-name small { font-weight: 400; color: var(--ink-2); font-size: 12.5px; margin-left: 6px; }
+  .track { position: relative; height: 24px; }
+  .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 2px; }
+  .lane.ao .fill { background: var(--marker); }
+  .lane.rnd .fill { background: var(--line); }
+  .tally { position: absolute; top: 50%; transform: translateY(-50%); white-space: nowrap; font-weight: 750; font-size: 15px; padding-left: 8px; }
+  .tally small { font-weight: 400; color: var(--ink-2); font-size: 12.5px; margin-left: 6px; }
+  .race-sum { margin: 12px 0 0; font-size: 14.5px; line-height: 1.45; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <div>
+      <h1>Which fix should you try first?</h1>
+      <p class="lede">AO* search finds the cheapest route through a fault tree to a working device, then reroutes when a fix fails.</p>
+    </div>
+    <div class="devices" id="devices" role="group" aria-label="Device problem"></div>
+  </header>
+
+  <div class="stage">
+    <div class="board" id="board"><svg id="svg" role="img" aria-label="Fault tree for the selected problem"></svg></div>
+    <div class="caption" aria-live="polite">
+      <svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>
+      <p id="caption">Loading the fault tree…</p>
+    </div>
+    <div class="legend" aria-label="Legend">
+      <span><svg viewBox="0 0 30 20"><path d="M2 2 Q10 10 2 18 Q20 18 28 10 Q20 2 2 2 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>OR: any one branch fixes it</span>
+      <span><svg viewBox="0 0 30 20"><path d="M2 2 H16 A8 8 0 0 1 16 18 H2 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>AND: every branch is needed</span>
+      <span><svg viewBox="0 0 30 20"><path d="M3 10 H27" stroke="var(--marker)" stroke-width="10" stroke-linecap="round" opacity=".7"/></svg>Cheapest route</span>
+      <span><svg viewBox="0 0 30 20"><path d="M3 10 H27" stroke="var(--fail)" stroke-width="2.6" stroke-linecap="round"/></svg>Didn’t work</span>
+      <span><svg viewBox="0 0 30 20"><path d="M6 10 l6 6 l12 -12" fill="none" stroke="var(--ok)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Worked</span>
+      <span>f = cheapest cost to fix from that point</span>
+    </div>
+  </div>
+
+  <aside class="side">
+    <section class="next" id="next" aria-live="polite"></section>
+    <section>
+      <h2>Cheapest plan from here</h2>
+      <div id="plan"></div>
+    </section>
+    <section>
+      <div class="row"><h2>What you’ve tried</h2><button class="text-btn" id="reset">Start over</button></div>
+      <div id="log"></div>
+    </section>
+    <section class="race">
+      <h3>What if you just guessed?</h3>
+      <p>Compare the AO* plan with 2,000 repairs that try fixes in a random order.</p>
+      <button class="race-btn" id="race-btn">Run 2,000 random repairs</button>
+      <div id="race"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = v => v == null ? "∞" : "$" + Math.round(v);
+const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const still = () => RM || document.hidden;  // no motion when reduced-motion is on or nobody can see the tab
+const wait = ms => new Promise(r => setTimeout(r, still() ? 0 : ms));
+const NS = "http://www.w3.org/2000/svg";
+const mk = (tag, attrs, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+
+let problem = null, problemName = "", events = [], state = null, nodes = {}, geo = {}, els = {}, lit = new Set(), busy = false;
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r.json();
+}
+const fetchState = () => api("/api/state", { problem, events });
+function index(s) { const m = {}; (function w(n) { m[n.id] = n; n.children.forEach(w); })(s.tree); return m; }
+
+/* ── layout: root on the left, fixes stacked on the right ─────────── */
+const L = { gw: 52, gh: 36, colStep: 240, x0: 40, leafX: 0, leafW: 430, leafH: 34, row: 42, gap: 18, top: 60 };
+
+function layout(tree) {
+  geo = {}; let y = L.top;
+  // fixes line up in one column, right of the deepest gate
+  const gateDepth = n => n.type === "LEAF" ? -1 : 1 + Math.max(...n.children.map(gateDepth));
+  L.leafX = L.x0 + (gateDepth(tree) + 1) * L.colStep;
+  (function place(n, depth, parent) {
+    if (n.type === "LEAF") {
+      geo[n.id] = { x: L.leafX, cy: y + L.leafH / 2, top: y, depth, parent };
+      y += L.row;
+      return;
+    }
+    n.children.forEach((c, i) => {
+      if (c.type !== "LEAF" && i > 0 && n.children[i - 1].type === "LEAF") y += L.gap / 2;
+      place(c, depth + 1, n.id);
+    });
+    if (n.children.every(c => c.type === "LEAF")) y += L.gap;
+    const ys = n.children.map(c => geo[c.id].cy);
+    geo[n.id] = { x: L.x0 + depth * L.colStep, cy: (Math.min(...ys) + Math.max(...ys)) / 2, depth, parent };
+  })(tree, 0, null);
+  return y + 10;
+}
+
+const orPath = (w, h) => `M0,0 Q${w * .32},${h / 2} 0,${h} Q${w * .72},${h} ${w},${h / 2} Q${w * .72},0 0,0 Z`;
+const andPath = (w, h) => `M0,0 H${w - h / 2} A${h / 2},${h / 2} 0 0 1 ${w - h / 2},${h} H0 Z`;
+
+function edgeD(childId) {
+  const c = geo[childId], p = geo[c.parent];
+  // bend just before the next gate column, clear of the parent's label
+  const x1 = p.x + L.gw, x2 = c.x, mid = L.x0 + (p.depth + 1) * L.colStep - 40;
+  return `M${x1},${p.cy} H${mid} V${c.cy} H${x2}`;
+}
+
+function buildBoard() {
+  const svg = $("svg");
+  svg.innerHTML = ""; els = {}; lit = new Set();
+  const H = layout(state.tree);
+  svg.setAttribute("viewBox", `0 0 ${L.leafX + L.leafW + 10} ${H}`);
+  const gHl = mk("g", {}, svg), gEdge = mk("g", {}, svg), gNode = mk("g", {}, svg), gFx = mk("g", {}, svg);
+  els.fx = gFx;
+
+  for (const id in nodes) {
+    const n = nodes[id], g = geo[id], e = (els[id] = {});
+    if (g.parent != null) {
+      e.edge = mk("path", { d: edgeD(id), class: "edge" }, gEdge);
+      e.hl = mk("path", { d: edgeD(id), class: "hl", pathLength: 1 }, gHl);
+    }
+    if (n.type === "LEAF") {
+      const grp = (e.g = mk("g", { class: "leaf" }, gNode));
+      mk("title", {}, grp).textContent = n.desc;
+      mk("rect", { class: "ring", x: g.x - 4, y: g.top - 4, width: L.leafW + 8, height: L.leafH + 8, rx: 9 }, grp);
+      mk("rect", { class: "leaf-box", x: g.x, y: g.top, width: L.leafW, height: L.leafH, rx: 6 }, grp);
+      const swipe = mk("rect", { class: "swipe", x: g.x + 7, y: g.cy - 11, height: 22, rx: 3, width: 10 }, grp);
+      const name = mk("text", { class: "leaf-name", x: g.x + 12, y: g.cy + 5 }, grp);
+      name.textContent = n.name;
+      mk("text", { class: "leaf-cost", x: g.x + L.leafW - 96, y: g.cy + 5, "text-anchor": "end" }, grp).textContent = money(n.cost);
+      mk("text", { class: "leaf-time", x: g.x + L.leafW - 36, y: g.cy + 5, "text-anchor": "end" }, grp).textContent = `${n.time} min`;
+      const w = name.getComputedTextLength();
+      swipe.setAttribute("width", w + 10);
+      mk("path", { class: "strike", d: `M${g.x + 8},${g.cy} H${g.x + 16 + w}`, pathLength: 1 }, grp);
+      mk("path", { class: "check", d: `M${g.x + L.leafW - 24},${g.cy} l5,5 l10,-11`, pathLength: 1 }, grp);
+    } else {
+      const grp = (e.g = mk("g", { class: "gate" }, gNode));
+      mk("title", {}, grp).textContent = n.desc;
+      // gate points left, toward its parent: draw it pointing right, then mirror
+      const shape = mk("g", { transform: `translate(${g.x + L.gw},${g.cy - L.gh / 2}) scale(-1,1)` }, grp);
+      mk("path", { class: "gate-shape", d: n.type === "AND" ? andPath(L.gw, L.gh) : orPath(L.gw, L.gh) }, shape);
+      mk("text", { class: "g-type", x: g.x + L.gw / 2 + (n.type === "AND" ? 6 : 8), y: g.cy + 4, "text-anchor": "middle" }, grp).textContent = n.type;
+      mk("path", { class: "gate-x", d: `M${g.x + 14},${g.cy - 12} l24,24 M${g.x + 38},${g.cy - 12} l-24,24` }, grp);
+      mk("text", { class: "g-label", x: g.x, y: g.cy - L.gh / 2 - 10 }, grp).textContent = n.name;
+      e.f = mk("text", { class: "g-f", x: g.x, y: g.cy + L.gh / 2 + 19 }, grp);
+      e.f.textContent = "f = ?";
+    }
+  }
+}
+
+/* ── state → classes ──────────────────────────────────────────────── */
+function setStatus(id) {
+  const n = nodes[id], e = els[id];
+  e.g.classList.toggle("solved", n.status === "SOLVED");
+  e.g.classList.toggle("failed", n.status === "FAILED");
+  if (e.edge) e.edge.classList.toggle("dead", n.status === "FAILED");
+}
+
+function setF(id, animate) {
+  const t = els[id].f, to = nodes[id].f, from = t._f;
+  t._f = to;
+  const show = v => (t.textContent = `f = ${money(v)}`);
+  if (from === to && t.textContent !== "f = ?") return;
+  t.classList.remove("flash"); void t.getBBox(); t.classList.add("flash");
+  if (!animate || still() || from == null || to == null) return show(to);
+  const t0 = performance.now(), dur = 450;
+  (function step(now) {
+    const k = Math.min(1, (now - t0) / dur);
+    show(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
+/* ── motion ───────────────────────────────────────────────────────── */
+function pulse(childId, kind, dur = 420) {
+  if (still()) return Promise.resolve();
+  const p = els[childId].edge, len = p.getTotalLength();
+  const dot = mk("circle", { r: 5.5, class: `pulse ${kind}` }, els.fx);
+  return new Promise(res => {
+    const t0 = performance.now();
+    (function step(now) {
+      const k = Math.min(1, (now - t0) / dur);
+      const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const pt = p.getPointAtLength(len * (1 - e));
+      dot.setAttribute("cx", pt.x); dot.setAttribute("cy", pt.y);
+      if (k < 1) requestAnimationFrame(step); else { dot.remove(); res(); }
+    })(t0);
+  });
+}
+
+function tween(el, frames, dur, easing = "cubic-bezier(.6,0,.2,1)") {
+  const last = frames[frames.length - 1];
+  if (still()) { Object.assign(el.style, last); return Promise.resolve(); }
+  const a = el.animate(frames, { duration: dur, easing, fill: "forwards" });
+  return a.finished.then(() => { Object.assign(el.style, last); a.cancel(); });
+}
+
+const planClass = id => nodes[id].onPlan && nodes[id].status === "UNSOLVED";
+
+async function drawPlan() {
+  const want = new Set();
+  (function walk(n) {
+    if (!planClass(n.id)) return;
+    n.children.forEach(c => { if (planClass(c.id)) { want.add(c.id); walk(c); } });
+  })(state.tree);
+
+  // fade out the old route
+  const gone = [...lit].filter(id => !want.has(id));
+  for (const id in nodes) if (!planClass(id)) els[id].g.classList.remove("plan", "next");
+  await Promise.all(gone.map(id => tween(els[id].hl, [{ opacity: "" }, { opacity: "0" }], 260).then(() => {
+    Object.assign(els[id].hl.style, { opacity: "", strokeDashoffset: "1" });
+    lit.delete(id);
+  })));
+
+  // draw the new route, level by level from the root
+  if (planClass(state.tree.id)) els[state.tree.id].g.classList.add("plan");
+  const fresh = [...want].filter(id => !lit.has(id));
+  const depths = [...new Set(fresh.map(id => geo[id].depth))].sort((a, b) => a - b);
+  for (const d of depths) {
+    await Promise.all(fresh.filter(id => geo[id].depth === d).map(id =>
+      tween(els[id].hl, [{ strokeDashoffset: "1" }, { strokeDashoffset: "0" }], 340).then(() => {
+        lit.add(id); els[id].g.classList.add("plan");
+      })));
+  }
+  const nextId = state.path[0];
+  if (nextId != null) { await wait(250); els[nextId].g.classList.add("next"); }
+}
+
+/* ── opening sequence: costs flow up from every fix ───────────────── */
+async function intro() {
+  buildBoard();
+  for (const id in nodes) setStatus(id);
+  tween($("svg"), [{ opacity: "0" }, { opacity: "1" }], 300, "ease-out");
+  caption(`AO* starts at the fixes and works upward, passing each branch’s cheapest cost to its parent.`);
+  await wait(450);
+  const gates = Object.keys(nodes).filter(id => nodes[id].type !== "LEAF");
+  const maxD = Math.max(...gates.map(id => geo[id].depth));
+  for (let d = maxD; d >= 0; d--) {
+    await Promise.all(gates.filter(id => geo[id].depth === d).map(id =>
+      Promise.all(nodes[id].children.map(c => pulse(c.id, "cost", 520))).then(() => setF(id, false))));
+    await wait(160);
+  }
+  await drawPlan();
+  const nx = nodes[state.path[0]];
+  caption(nx
+    ? `Each OR gate keeps its cheapest branch; each AND gate adds up all of its steps. The highlighted route is the cheapest way to fix this, starting with <strong>${esc(nx.name)}</strong> (${money(nx.cost)}, ${nx.time} min).`
+    : `Nothing left to try in this tree.`);
+}
+
+/* ── one attempt: mark, propagate up, replan ──────────────────────── */
+async function attempt(result) {
+  if (busy || !state || !state.path.length) return;
+  setBusy(true);
+  const leafId = state.path[0], prevNodes = nodes;
+  events.push([leafId, result]);
+  try {
+    state = await fetchState();
+  } catch (e) {
+    events.pop(); caption(`The server didn’t answer (${esc(e.message)}). Check that web.py is still running, then try again.`);
+    return setBusy(false);
+  }
+  nodes = index(state);
+
+  els[leafId].g.classList.remove("next", "plan");
+  setStatus(leafId);
+  await wait(480);
+
+  // walk the change up to the root, gate by gate
+  let child = leafId;
+  for (let a = geo[leafId].parent; a != null; a = geo[a].parent) {
+    await pulse(child, result === "Y" ? "ok" : "bad", 380);
+    setStatus(a); setF(a, true);
+    await wait(180);
+    child = a;
+  }
+  await drawPlan();
+  caption(explain(leafId, result, prevNodes));
+  renderDesk(true);
+  setBusy(false);
+}
+
+function explain(leafId, result, prev) {
+  const leaf = nodes[leafId], par = nodes[geo[leafId].parent];
+  const b = s => `<strong>${esc(s)}</strong>`;
+  const nx = nodes[state.path[0]];
+  if (result === "Y") {
+    if (state.solved) return `${b(leaf.name)} worked, so the ${esc(problemName.toLowerCase())} problem is fixed. You spent ${money(spent().cost)} and ${spent().time} min.`;
+    if (par.type === "AND") {
+      const left = par.children.filter(c => c.status !== "SOLVED").map(c => b(c.name)).join(" and ");
+      return `${b(leaf.name)} worked. ${b(par.name)} is an AND gate, so every step still matters: ${left} is next.`;
+    }
+    return `${b(leaf.name)} worked.`;
+  }
+  let s = `${b(leaf.name)} didn’t work, so AO* rules it out by setting its cost to ∞.`;
+  if (par.type === "AND") s += ` ${b(par.name)} is an AND gate and needs every step, so the whole branch is ruled out.`;
+  else if (par.f == null) s += ` That was the last option under ${b(par.name)}, so that branch is ruled out too.`;
+  else if (prev[par.id].f !== par.f) s += ` ${b(par.name)} now costs at least ${money(par.f)}.`;
+  if (state.failed || !nx) return s + ` Every route is ruled out. Time to take it to a repair shop.`;
+  const sameBranch = geo[nx.id].parent === par.id;
+  return s + (sameBranch
+    ? ` The next cheapest fix in this branch is ${b(nx.name)}.`
+    : ` The cheapest route now runs through ${b(nodes[geo[nx.id].parent].name)}: try ${b(nx.name)}.`);
+}
+
+function spent() {
+  return events.reduce((t, [id]) => ({ cost: t.cost + nodes[id].cost, time: t.time + nodes[id].time }), { cost: 0, time: 0 });
+}
+
+function caption(html) {
+  const p = $("caption");
+  p.innerHTML = html;
+  p.classList.remove("swap"); void p.offsetWidth; p.classList.add("swap");
+}
+
+/* ── panels under the board ───────────────────────────────────────── */
+function renderDesk(newRow) {
+  const nx = nodes[state.path[0]], s = spent();
+  if (state.solved) {
+    $("next").innerHTML = `<h2>Result</h2><p class="verdict good">Fixed</p>
+      <p class="next-desc">${esc(problemName)} is solved after ${events.length} step${events.length === 1 ? "" : "s"}.</p>
+      <div class="facts"><div><b>${money(s.cost)}</b><small>spent</small></div><div><b>${s.time} min</b><small>spent</small></div></div>
+      <button class="again" data-reset>Start over</button>`;
+  } else if (!nx) {
+    $("next").innerHTML = `<h2>Result</h2><p class="verdict bad">No fixes left</p>
+      <p class="next-desc">Every route in this tree has been tried. Take the device to a repair shop.</p>
+      <button class="again" data-reset>Start over</button>`;
+  } else {
+    $("next").innerHTML = `<h2>Try this next</h2>
+      <p class="next-name">${esc(nx.name)}</p>
+      <p class="next-desc">${esc(nx.desc)}</p>
+      <div class="facts"><div><b>${money(nx.cost)}</b><small>cost</small></div><div><b>${nx.time} min</b><small>time</small></div></div>
+      <div class="actions">
+        <button class="yes" data-r="Y">It worked <kbd>Y</kbd></button>
+        <button class="no" data-r="N">It didn’t <kbd>N</kbd></button>
+      </div>`;
+  }
+
+  $("plan").innerHTML = state.path.length
+    ? `<ol class="plan">${state.path.map((id, i) => `<li style="animation-delay:${i * 60}ms"><span>${esc(nodes[id].name)}</span><span class="amt">${money(nodes[id].cost)}<small>${nodes[id].time} min</small></span></li>`).join("")}</ol>`
+    : `<p class="empty">${state.solved ? "Nothing left to do." : "No routes left to try."}</p>`;
+
+  $("log").innerHTML = events.length
+    ? `<table>${events.map(([id, r], i) => `<tr class="${newRow && i === events.length - 1 ? "new" : ""}">
+          <td class="${r === "Y" ? "r-ok" : "r-bad"}" aria-label="${r === "Y" ? "Worked" : "Didn't work"}">${r === "Y" ? "✓" : "✗"}</td>
+          <td>${esc(nodes[id].name)}</td><td class="num">${money(nodes[id].cost)}</td></tr>`).join("")}
+        <tr class="total"><td></td><td>Total, ${s.time} min</td><td class="num">${money(s.cost)}</td></tr></table>`
+    : `<p class="empty">Nothing yet. Report the first fix to start.</p>`;
+  setBusy(busy);
+}
+
+function setBusy(b) {
+  busy = b;
+  document.querySelectorAll(".actions button, .devices button, #reset, [data-reset], #race-btn").forEach(x => (x.disabled = b));
+}
+
+/* ── switching problems ───────────────────────────────────────────── */
+async function select(key, name) {
+  if (busy) return;
+  problem = key; problemName = name; events = [];
+  [...$("devices").children].forEach(b => b.setAttribute("aria-pressed", b.dataset.key === key));
+  $("race").innerHTML = "";
+  setBusy(true);
+  try {
+    state = await fetchState(); nodes = index(state);
+    renderDesk(false); setBusy(true);
+    await intro();
+  } catch (e) {
+    caption(`Couldn’t load this problem (${esc(e.message)}). Check that web.py is running, then reload the page.`);
+  }
+  setBusy(false);
+}
+
+$("next").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  if (b.dataset.r) attempt(b.dataset.r);
+  if ("reset" in b.dataset) select(problem, problemName);
+});
+$("reset").onclick = () => select(problem, problemName);
+addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea/i.test(e.target.tagName)) return;
+  const k = e.key.toUpperCase();
+  if (k === "Y" || k === "N") attempt(k);
+});
+
+/* ── race: AO* vs random guessing ─────────────────────────────────── */
+$("race-btn").onclick = async () => {
+  setBusy(true);
+  $("race").innerHTML = `<p class="race-sum">Running 2,000 repairs…</p>`;
+  let ao, r;
+  try { ({ ao, random: r } = await api("/api/compare?problem=" + problem)); }
+  catch (e) { $("race").innerHTML = `<p class="race-sum">The simulation didn’t run (${esc(e.message)}). Check that web.py is running.</p>`; return setBusy(false); }
+  const max = Math.max(r.avg_cost, ao.cost, 1);
+  $("race").innerHTML = `<div class="lanes">
+      <div class="lane ao"><div class="lane-name">AO* plan<small>${ao.steps} step${ao.steps === 1 ? "" : "s"}</small></div>
+        <div class="track"><div class="fill"></div><div class="tally"></div></div></div>
+      <div class="lane rnd"><div class="lane-name">Random order<small>average of ${r.trials.toLocaleString()} runs</small></div>
+        <div class="track"><div class="fill"></div><div class="tally"></div></div></div>
+    </div><p class="race-sum" hidden></p>`;
+  const lanes = [[".ao", ao.cost, ao.time], [".rnd", r.avg_cost, r.avg_time]].map(([sel, cost, time]) => ({
+    fill: $("race").querySelector(`${sel} .fill`), tally: $("race").querySelector(`${sel} .tally`), cost, time,
+  }));
+  const dur = still() ? 0 : 1600, t0 = performance.now();
+  await new Promise(res => (function step(now) {
+    const k = dur ? Math.min(1, (now - t0) / dur) : 1, e = 1 - Math.pow(1 - k, 3);
+    for (const l of lanes) {
+      const pct = Math.max(0.8, (l.cost / max) * 58) * e;
+      l.fill.style.width = pct + "%";
+      l.tally.style.left = pct + "%";
+      l.tally.innerHTML = `${money(l.cost * e)}<small>${Math.round(l.time * e)} min</small>`;
+    }
+    if (k < 1) requestAnimationFrame(step); else res();
+  })(t0));
+  const sum = $("race").querySelector(".race-sum");
+  sum.hidden = false;
+  sum.innerHTML = r.avg_cost > ao.cost
+    ? `Guessing costs <strong>${money(r.avg_cost - ao.cost)} more</strong> and takes <strong>${Math.round(r.avg_time - ao.time)} min longer</strong> on average. The unluckiest guesser paid ${money(r.max_cost)}.`
+    : `Here guessing happens to cost the same as AO* on average.`;
+  sum.classList.add("swap");
+  setBusy(false);
+};
+
+/* ── boot ─────────────────────────────────────────────────────────── */
+(async () => {
+  try {
+    const list = await api("/api/problems");
+    $("devices").innerHTML = list.map(p => `<button data-key="${p.key}" data-name="${esc(p.name)}">${esc(p.name)}</button>`).join("");
+    $("devices").onclick = e => { const b = e.target.closest("button"); if (b) select(b.dataset.key, b.dataset.name); };
+    await (document.fonts ? document.fonts.ready : Promise.resolve());
+    select(list[0].key, list[0].name);
+  } catch (e) {
+    caption(`Couldn’t reach the server (${esc(e.message)}). Start it with <strong>.venv/bin/python web.py</strong> and reload.`);
+  }
+})();
+</script>
+</body>
+</html>
