@@ -635,7 +635,7 @@ $("race-btn").onclick = async () => {
     await (document.fonts ? document.fonts.ready : Promise.resolve());
     select(list[0].key, list[0].name);
   } catch (e) {
-    caption(`Couldn’t reach the server (${esc(e.message)}). Start it with <strong>.venv/bin/python web.py</strong> and reload.`);
+    caption(`Couldn’t reach the server (${esc(e.message)}). Start it with <strong>python web.py</strong> and reload.`);
   }
 })();
 </script>

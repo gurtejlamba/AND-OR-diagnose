@@ -3,9 +3,10 @@
 
 ### Quick Start
 ```bash
-pip install -r requirements.txt
-python run.py
+python web.py
+# → open http://localhost:8000
 ```
+The server uses only the standard library (`requirements.txt` is for the PDF/PPT generators).
 
 ### Generate Presentation PDF
 ```bash
@@ -16,16 +17,14 @@ python presentation/generate_pdf.py
 ### Project Structure
 ```
 aiscp/
-├── run.py                       ← entry point
+├── web.py                       ← entry point: HTTP server + JSON API
+├── web/index.html               ← interactive fault-tree UI
 ├── requirements.txt
 ├── src/
 │   ├── and_or_graph.py          ← Node, NodeType, Status
 │   ├── ao_star.py               ← AO* engine (cost propagation + replanning)
 │   ├── knowledge_base.py        ← 4 device problem trees
-│   ├── troubleshooter.py        ← CLI session manager
-│   ├── visualizer.py            ← ASCII tree renderer
-│   ├── comparison.py            ← Monte Carlo vs AO* comparison
-│   └── main.py                  ← menu controller
+│   └── comparison.py            ← Monte Carlo vs AO* comparison
 ├── docs/
 │   ├── 01_introduction.md
 │   ├── 02_problem_statement.md
@@ -41,13 +40,10 @@ aiscp/
     └── generate_pdf.py          ← run to produce PDF
 ```
 
-### Menu Options
-| Option | Description |
-|--------|-------------|
-| 1 | View AO* optimal fix plan (read-only) |
-| 2 | Interactive session — attempt steps, trigger replanning |
-| 3 | Monte Carlo comparison: AO* vs random fixing |
-| 4 | Show full AND-OR tree with cost annotations |
+### Using the web app
+- Pick a device problem; the tree animates AO* costs flowing up and highlights the cheapest plan.
+- Answer each step with **It worked (Y)** / **It didn't (N)**; AO* propagates the result and replans.
+- **Run 2,000 random repairs** compares the AO* plan against trying fixes in random order.
 
 ### Device Problems Included
 1. Laptop Won't Start

@@ -86,16 +86,15 @@ class AOStar:
     # Public interface
     # ------------------------------------------------------------------
 
-    def get_solution_path(self) -> Optional[List[Node]]:
+    def get_solution_path(self) -> List[Node]:
         """
         Return the ordered list of LEAF nodes in the current best plan,
         excluding any already SOLVED (already executed) leaves.
-        Returns None if the root is FAILED.
+        Empty if the root is SOLVED or FAILED.
         """
         if self.root.status == Status.FAILED:
-            return None
-        path = self._extract_path(self.root)
-        return path if path else None
+            return []
+        return self._extract_path(self.root)
 
     def _extract_path(self, node: Node) -> List[Node]:
         if node.status == Status.SOLVED:

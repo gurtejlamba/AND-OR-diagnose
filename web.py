@@ -35,7 +35,7 @@ def build_state(problem, events):
             continue
         (ao.mark_solved if result == "Y" else ao.mark_failed)(leaf)
 
-    path = ao.get_solution_path() or []
+    path = ao.get_solution_path()
     on_plan = set()
 
     def mark_plan(n):
